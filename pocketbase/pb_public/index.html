@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Rota da carona</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    background: #111416;
+    color: #e8eaed;
+  }
+  header {
+    padding: 12px 16px;
+    display: flex;
+    gap: 8px;
+    background: #1b1f23;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+  }
+  header input {
+    flex: 1;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #3a3f44;
+    background: #0f1113;
+    color: #e8eaed;
+    font-size: 16px;
+  }
+  header button {
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: none;
+    background: #3b82f6;
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  #mapa { height: 42vh; width: 100%; }
+  button, .btn-navegar, #link-geral, .passo-compacto {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.08s ease, opacity 0.08s ease, background 0.15s ease;
+  }
+  button:active:not(:disabled),
+  .btn-navegar:active,
+  #link-geral:active,
+  .passo-compacto:active {
+    transform: scale(0.96);
+    opacity: 0.8;
+  }
+  #resumo {
+    padding: 10px 16px;
+    font-size: 14px;
+    color: #a9b0b6;
+    border-bottom: 1px solid #262a2e;
+  }
+  #status { padding: 16px; color: #a9b0b6; }
+  #status.erro { color: #f87171; }
+  ol#paradas {
+    list-style: none;
+    margin: 0;
+    padding: 12px 16px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .ticket {
+    background: #1b1f23;
+    border: 2px solid #3b82f6;
+    border-radius: 12px;
+    padding: 14px 16px;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+  }
+  .passo-compacto {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: #16191c;
+    border: 1px solid #22262a;
+    font-size: 13px;
+    color: #6b7280;
+  }
+  .passo-compacto.concluido .check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: #22c55e;
+    color: #06240f;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .passo-compacto.concluido .passo-resumo { text-decoration: line-through; }
+  .passo-compacto.futuro .passo-resumo { color: #4b5563; }
+  .ticket-numero {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: #6b7280;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .ticket-label {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: #6b7280;
+    text-transform: uppercase;
+  }
+  .ticket-valor {
+    display: block;
+    font-size: 17px;
+    font-weight: 700;
+    color: #e8eaed;
+    margin-top: 2px;
+  }
+  .ticket-ref {
+    display: block;
+    font-size: 12.5px;
+    color: #a9b0b6;
+    margin-top: 2px;
+  }
+  .ticket-divisor {
+    border: none;
+    border-top: 2px dashed #353b41;
+    margin: 10px 0;
+  }
+  .ticket-extra {
+    margin-top: 12px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: rgba(251, 191, 36, 0.12);
+    color: #fbbf24;
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  .btn-navegar {
+    display: block;
+    margin-top: 12px;
+    padding: 11px 14px;
+    border-radius: 8px;
+    background: #22c55e;
+    color: #06240f;
+    font-size: 14px;
+    font-weight: 700;
+    text-align: center;
+    text-decoration: none;
+  }
+  .btn-concluir {
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+    padding: 11px 14px;
+    border-radius: 8px;
+    border: 1px solid #3b82f6;
+    background: transparent;
+    color: #8ab4ff;
+    font-size: 14px;
+    font-weight: 700;
+    text-align: center;
+  }
+  .passo-compacto { cursor: pointer; }
+  #link-geral {
+    display: block;
+    margin: 16px;
+    padding: 12px;
+    text-align: center;
+    border-radius: 8px;
+    background: #262a2e;
+    color: #e8eaed;
+    text-decoration: none;
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <input id="input-id" type="text" placeholder="ID da viagem" autocomplete="off" />
+    <button id="btn-carregar">Carregar</button>
+  </header>
+
+  <div id="mapa"></div>
+  <div id="resumo"></div>
+  <div id="status"></div>
+  <ol id="paradas"></ol>
+  <a id="link-geral" style="display:none" target="_blank" rel="noopener">Ver viagem inteira no Google Maps</a>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const qs = new URLSearchParams(location.search);
+    const inputId = document.getElementById("input-id");
+    const btnCarregar = document.getElementById("btn-carregar");
+    const elStatus = document.getElementById("status");
+    const elResumo = document.getElementById("resumo");
+    const elParadas = document.getElementById("paradas");
+    const elLinkGeral = document.getElementById("link-geral");
+
+    inputId.value = qs.get("id") || "";
+
+    let mapa = L.map("mapa");
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap",
+      maxZoom: 19,
+    }).addTo(mapa);
+    mapa.setView([-21.2, -44.95], 10);
+
+    let camadaRota = null;
+
+    // Nome de exibição de uma parada (origem ou destino de um trecho).
+    function rotuloEstado(p) {
+      if (p.nome.indexOf("Embarque") === 0) return `Embarque de ${p.nome.slice("Embarque".length).trim()}`;
+      if (p.nome.indexOf("Desembarque") === 0) return `Desembarque de ${p.nome.slice("Desembarque".length).trim()}`;
+      return p.nome; // "Partida (...)" / "Chegada (...)" já são descritivos
+    }
+
+    // Progresso salvo localmente (sobrevive a recarregar a página no meio da
+    // viagem, ex.: celular dormiu). Cada viagem (id) guarda seu próprio passo.
+    let dadosAtuais = null;
+    let idAtual = null;
+    let passoAtual = 0;
+
+    function lerPassoSalvo(id) {
+      try {
+        const v = localStorage.getItem(`carona_passo_${id}`);
+        return v ? parseInt(v, 10) : 0;
+      } catch (e) {
+        return 0;
+      }
+    }
+    function salvarPasso(id, passo) {
+      try {
+        localStorage.setItem(`carona_passo_${id}`, String(passo));
+      } catch (e) {}
+    }
+
+    function irParaPasso(i) {
+      passoAtual = i;
+      salvarPasso(idAtual, passoAtual);
+      renderizarPassos();
+      const atual = elParadas.querySelector(".ticket");
+      if (atual) atual.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    function renderizarPassos() {
+      elParadas.innerHTML = "";
+      const total = dadosAtuais.trechos.length;
+
+      if (passoAtual >= total) {
+        const li = document.createElement("li");
+        li.className = "ticket";
+        li.innerHTML = `
+          <div class="ticket-numero">Viagem concluída</div>
+          <div class="ticket-valor">🎉 Chegou em ${rotuloEstado(dadosAtuais.paradas[dadosAtuais.paradas.length - 1])}</div>
+        `;
+        elParadas.appendChild(li);
+      }
+
+      dadosAtuais.trechos.forEach((trecho, i) => {
+        const origem = dadosAtuais.paradas[i];
+        const destino = dadosAtuais.paradas[i + 1];
+
+        if (i < passoAtual) {
+          const li = document.createElement("li");
+          li.className = "passo-compacto concluido";
+          li.innerHTML = `
+            <span class="check">✓</span>
+            <span class="passo-resumo">${rotuloEstado(origem)} → ${rotuloEstado(destino)}</span>
+          `;
+          li.addEventListener("click", () => irParaPasso(i));
+          elParadas.appendChild(li);
+          return;
+        }
+
+        if (i > passoAtual) {
+          const li = document.createElement("li");
+          li.className = "passo-compacto futuro";
+          li.innerHTML = `<span class="passo-resumo">${rotuloEstado(origem)} → ${rotuloEstado(destino)}</span>`;
+          li.addEventListener("click", () => irParaPasso(i));
+          elParadas.appendChild(li);
+          return;
+        }
+
+        // i === passoAtual: o trecho atual, em destaque.
+        const comVia = trecho.link.indexOf("waypoints=") !== -1;
+        const li = document.createElement("li");
+        li.className = "ticket";
+        li.innerHTML = `
+          <div class="ticket-numero">Trecho ${i + 1} de ${total}</div>
+          <div>
+            <span class="ticket-label">De</span>
+            <span class="ticket-valor">${rotuloEstado(origem)}</span>
+            ${origem.ref ? `<span class="ticket-ref">${origem.ref}</span>` : ""}
+          </div>
+          <hr class="ticket-divisor" />
+          <div>
+            <span class="ticket-label">Para</span>
+            <span class="ticket-valor">${rotuloEstado(destino)}</span>
+            ${destino.ref ? `<span class="ticket-ref">${destino.ref}</span>` : ""}
+          </div>
+          ${comVia ? `<div class="ticket-extra">Trecho mais longo — rota já ajustada pra evitar o desvio</div>` : ""}
+          <a class="btn-navegar" href="${trecho.link}" target="_blank" rel="noopener">Navegar</a>
+          <button class="btn-concluir" type="button">Próximo</button>
+        `;
+        li.querySelector(".btn-concluir").addEventListener("click", () => irParaPasso(i + 1));
+        elParadas.appendChild(li);
+      });
+    }
+
+    async function carregar() {
+      const id = inputId.value.trim();
+      if (!id) return;
+
+      history.replaceState(null, "", `?id=${encodeURIComponent(id)}`);
+
+      elStatus.className = "";
+      elStatus.textContent = "Calculando rota...";
+      elResumo.textContent = "";
+      elParadas.innerHTML = "";
+      elLinkGeral.style.display = "none";
+
+      let dados;
+      try {
+        const qtempo = qs.get("tempo") === "1" ? "?tempo=1" : "";
+        const resp = await fetch(`/api/viagens/${encodeURIComponent(id)}/otimizar${qtempo}`);
+        dados = await resp.json();
+        if (!resp.ok) throw new Error(dados.error || `Erro ${resp.status}`);
+      } catch (e) {
+        elStatus.className = "erro";
+        elStatus.textContent = "Erro: " + e.message;
+        return;
+      }
+
+      elStatus.textContent = "";
+      elResumo.textContent =
+        `${dados.distanciaKm} km · ~${dados.duracaoMin} min · otimizado por ${dados.criterio}`;
+
+      if (camadaRota) mapa.removeLayer(camadaRota);
+      const pontosLatLng = dados.paradas.map((p) => [p.lat, p.lng]);
+      camadaRota = L.layerGroup();
+      L.polyline(pontosLatLng, { color: "#3b82f6", weight: 4, opacity: 0.8 }).addTo(camadaRota);
+      dados.paradas.forEach((p, i) => {
+        L.marker([p.lat, p.lng])
+          .bindPopup(`${i + 1}. ${rotuloEstado(p)}${p.ref ? " — " + p.ref : ""}`)
+          .addTo(camadaRota);
+      });
+      camadaRota.addTo(mapa);
+      mapa.fitBounds(pontosLatLng, { padding: [24, 24] });
+
+      dadosAtuais = dados;
+      idAtual = id;
+      passoAtual = Math.min(Math.max(lerPassoSalvo(id), 0), dados.trechos.length);
+      renderizarPassos();
+
+      elLinkGeral.href = dados.googleMaps;
+      elLinkGeral.style.display = "block";
+    }
+
+    btnCarregar.addEventListener("click", carregar);
+    inputId.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") carregar();
+    });
+
+    if (inputId.value) carregar();
+  </script>
+</body>
+</html>

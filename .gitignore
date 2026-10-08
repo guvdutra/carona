@@ -1,0 +1,14 @@
+# Dados reais da sua viagem (nomes, endereços) -- nunca comitar.
+viagem.json
+
+# Banco do PocketBase: dados reais de viagens/reservas + hash de senha do admin.
+pocketbase/pb_data/
+
+# Binário do PocketBase (baixe com o comando no README) + arquivos que vêm no zip dele.
+pocketbase/pocketbase.exe
+pocketbase/CHANGELOG.md
+pocketbase/LICENSE.md
+
+# Lixo de SO / editor
+.DS_Store
+Thumbs.db

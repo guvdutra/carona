@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Solicitar Carona</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    background: #111416;
+    color: #e8eaed;
+  }
+  header {
+    padding: 14px 16px;
+    background: #1b1f23;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+  }
+  header h1 { margin: 0; font-size: 17px; }
+  header p { margin: 4px 0 0; font-size: 13px; color: #a9b0b6; }
+  #mapa { height: 46vh; width: 100%; }
+  button {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.08s ease, opacity 0.08s ease, background 0.15s ease;
+  }
+  button:active:not(:disabled) {
+    transform: scale(0.96);
+    opacity: 0.8;
+  }
+  #instrucao {
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    background: #1b1f23;
+    border-bottom: 1px solid #262a2e;
+  }
+  #instrucao.embarque { color: #22c55e; }
+  #instrucao.desembarque { color: #fbbf24; }
+  #instrucao.dados { color: #8ab4ff; }
+  .painel { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  label { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #6b7280; }
+  input {
+    width: 100%;
+    margin-top: 4px;
+    padding: 11px 12px;
+    border-radius: 8px;
+    border: 1px solid #3a3f44;
+    background: #0f1113;
+    color: #e8eaed;
+    font-size: 16px;
+  }
+  .ponto {
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #1b1f23;
+    border: 1px solid #2a2f34;
+    font-size: 13px;
+    color: #a9b0b6;
+  }
+  .ponto b { color: #e8eaed; }
+  .btn-principal {
+    padding: 14px;
+    border: none;
+    border-radius: 8px;
+    background: #3b82f6;
+    color: white;
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .btn-principal:disabled { opacity: 0.5; }
+  .btn-secundario {
+    padding: 11px 14px;
+    border-radius: 8px;
+    border: 1px solid #3a3f44;
+    background: transparent;
+    color: #a9b0b6;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  #btn-localizacao {
+    padding: 11px 14px;
+    border-radius: 8px;
+    border: 1px solid #22c55e;
+    background: transparent;
+    color: #22c55e;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  #btn-localizacao:disabled { opacity: 0.5; }
+  .btn-busca-endereco {
+    padding: 11px 14px;
+    border-radius: 8px;
+    border: none;
+    background: #22c55e;
+    color: #06240f;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .resultados-endereco { display: flex; flex-direction: column; gap: 8px; }
+  .resultado-endereco {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    text-align: left;
+    padding: 12px 14px;
+    border-radius: 8px;
+    border: 1px solid #2a2f34;
+    background: #1b1f23;
+    color: #e8eaed;
+  }
+  .resultado-endereco:active { background: #262a2e; }
+  .resultado-texto { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .resultado-rua {
+    font-size: 16px;
+    font-weight: 700;
+    color: #e8eaed;
+    white-space: normal;
+  }
+  .resultado-local { font-size: 12.5px; color: #a9b0b6; }
+  .resultado-seta { font-size: 22px; color: #4b5563; flex-shrink: 0; }
+  .popup-endereco { display: flex; flex-direction: column; gap: 8px; min-width: 180px; }
+  .popup-endereco-texto { font-size: 13px; color: #e8eaed; }
+  .popup-endereco-botao {
+    padding: 8px 12px;
+    border: none;
+    border-radius: 6px;
+    background: #22c55e;
+    color: #06240f;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: #1b1f23; color: #e8eaed; }
+  #msg { padding: 16px; font-size: 14px; }
+  #msg.erro { color: #f87171; }
+  #msg.sucesso { color: #22c55e; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Solicitar Carona</h1>
+  </header>
+
+  <div id="instrucao" class="embarque">Carregando viagem...</div>
+
+  <!-- Etapa 1: embarque -->
+  <div class="painel" id="painel-embarque" style="display:none">
+    <div>
+      <label for="input-rua-embarque">Rua</label>
+      <input id="input-rua-embarque" type="text" placeholder="ex.: Rua das Flores" />
+    </div>
+    <div>
+      <label for="input-numero-embarque">Número</label>
+      <input id="input-numero-embarque" type="text" inputmode="numeric" placeholder="ex.: 123" />
+    </div>
+    <div>
+      <label for="input-bairro-embarque">Bairro</label>
+      <input id="input-bairro-embarque" type="text" placeholder="ex.: Centro" />
+    </div>
+    <div>
+      <label for="input-cidade-embarque">Cidade</label>
+      <input id="input-cidade-embarque" type="text" placeholder="ex.: Juiz de Fora" />
+    </div>
+    <button type="button" class="btn-busca-endereco" id="btn-buscar-embarque">Buscar endereço</button>
+    <div class="resultados-endereco" id="resultados-embarque"></div>
+
+    <button type="button" class="btn-secundario" id="btn-alternar-mapa-embarque">🗺️ Prefiro marcar no mapa</button>
+
+    <div>
+      <label for="input-ref-embarque">Referência do embarque (opcional)</label>
+      <input id="input-ref-embarque" type="text" maxlength="200" placeholder="ex.: em frente ao mercado" />
+    </div>
+    <button type="button" class="btn-principal" id="btn-confirmar-embarque" disabled>Confirmar embarque →</button>
+  </div>
+
+  <!-- Etapa 2: desembarque -->
+  <div class="painel" id="painel-desembarque" style="display:none">
+    <div>
+      <label for="input-rua-desembarque">Rua</label>
+      <input id="input-rua-desembarque" type="text" placeholder="ex.: Avenida Brasil" />
+    </div>
+    <div>
+      <label for="input-numero-desembarque">Número</label>
+      <input id="input-numero-desembarque" type="text" inputmode="numeric" placeholder="ex.: 262" />
+    </div>
+    <div>
+      <label for="input-bairro-desembarque">Bairro</label>
+      <input id="input-bairro-desembarque" type="text" placeholder="ex.: Centro" />
+    </div>
+    <div>
+      <label for="input-cidade-desembarque">Cidade</label>
+      <input id="input-cidade-desembarque" type="text" placeholder="ex.: Barbacena" />
+    </div>
+    <button type="button" class="btn-busca-endereco" id="btn-buscar-desembarque">Buscar endereço</button>
+    <div class="resultados-endereco" id="resultados-desembarque"></div>
+
+    <button type="button" class="btn-secundario" id="btn-alternar-mapa-desembarque">🗺️ Prefiro marcar no mapa</button>
+
+    <div>
+      <label for="input-ref-desembarque">Referência do desembarque (opcional)</label>
+      <input id="input-ref-desembarque" type="text" maxlength="200" placeholder="ex.: praça da matriz" />
+    </div>
+    <button type="button" class="btn-secundario" id="btn-voltar-embarque">← Revisar embarque</button>
+    <button type="button" class="btn-principal" id="btn-confirmar-desembarque" disabled>Confirmar desembarque →</button>
+  </div>
+
+  <!-- Mapa: minimizado por padrão, aparece embaixo do painel de endereço
+       ativo quando a pessoa escolhe "marcar no mapa" (ou quando confirma um
+       endereço, pra ela ver o pino). -->
+  <div id="mapa-secao" style="display:none">
+    <div id="mapa"></div>
+    <div class="painel">
+      <button type="button" id="btn-localizacao" style="display:none">📍 Usar minha localização atual</button>
+      <div class="ponto" id="ponto-embarque" style="display:none">Embarque: <b>ainda não marcado</b></div>
+      <div class="ponto" id="ponto-desembarque" style="display:none">Desembarque: <b>ainda não marcado</b></div>
+    </div>
+  </div>
+
+  <!-- Etapa 3: dados finais -->
+  <form class="painel" id="form-pedido" style="display:none">
+    <div>
+      <label for="input-nome">Seu nome</label>
+      <input id="input-nome" type="text" required maxlength="120" autocomplete="name" />
+    </div>
+    <button type="button" class="btn-secundario" id="btn-voltar-desembarque">← Revisar desembarque</button>
+    <button type="submit" class="btn-principal">Enviar pedido</button>
+  </form>
+
+  <div id="msg"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const qs = new URLSearchParams(location.search);
+    const viagemId = qs.get("viagem");
+
+    const elInstrucao = document.getElementById("instrucao");
+    const elMapaSecao = document.getElementById("mapa-secao");
+    const elPainelEmbarque = document.getElementById("painel-embarque");
+    const elPainelDesembarque = document.getElementById("painel-desembarque");
+    const elForm = document.getElementById("form-pedido");
+    const elPontoEmbarque = document.getElementById("ponto-embarque");
+    const elPontoDesembarque = document.getElementById("ponto-desembarque");
+    const elBtnConfirmarEmbarque = document.getElementById("btn-confirmar-embarque");
+    const elBtnConfirmarDesembarque = document.getElementById("btn-confirmar-desembarque");
+    const elBtnVoltarEmbarque = document.getElementById("btn-voltar-embarque");
+    const elBtnVoltarDesembarque = document.getElementById("btn-voltar-desembarque");
+    const elBtnLocalizacao = document.getElementById("btn-localizacao");
+    const elBtnAlternarMapaEmbarque = document.getElementById("btn-alternar-mapa-embarque");
+    const elBtnAlternarMapaDesembarque = document.getElementById("btn-alternar-mapa-desembarque");
+    const elBtnEnviar = elForm.querySelector('button[type="submit"]');
+    const elMsg = document.getElementById("msg");
+
+    function erroFatal(texto) {
+      elMsg.className = "erro";
+      elMsg.textContent = texto;
+      elInstrucao.style.display = "none";
+    }
+
+    if (!viagemId) {
+      erroFatal("Link inválido: falta o identificador da viagem (?viagem=...).");
+    }
+
+    const mapa = L.map("mapa");
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap",
+      maxZoom: 19,
+    }).addTo(mapa);
+    mapa.setView([-21.2, -44.95], 10);
+
+    let embarque = null;
+    let desembarque = null;
+    let marcadorEmbarque = null;
+    let marcadorDesembarque = null;
+    let partidaCoords = null;
+    let chegadaCoords = null;
+    let passo = "embarque"; // "embarque" | "desembarque" | "dados"
+
+    // Pop-up com o endereço + botão de confirmar, exibido em todo pino (de
+    // busca, GPS ou toque manual no mapa). Sem endereço conhecido (toque
+    // manual/GPS), mostra um texto genérico só pra confirmar que o ponto foi
+    // marcado ali.
+    function abrirPopupEndereco(marcador, label) {
+      const conteudo = document.createElement("div");
+      conteudo.className = "popup-endereco";
+      const texto = document.createElement("div");
+      texto.className = "popup-endereco-texto";
+      texto.textContent = label || "Ponto marcado aqui";
+      const botao = document.createElement("button");
+      botao.type = "button";
+      botao.className = "popup-endereco-botao";
+      botao.textContent = "Confirmar";
+      botao.addEventListener("click", () => marcador.closePopup());
+      conteudo.appendChild(texto);
+      conteudo.appendChild(botao);
+      marcador.bindPopup(conteudo).openPopup();
+    }
+
+    function definirEmbarque(lat, lng, label) {
+      embarque = { lat, lng };
+      if (marcadorEmbarque) mapa.removeLayer(marcadorEmbarque);
+      marcadorEmbarque = L.marker([lat, lng], {
+        icon: L.divIcon({ className: "", html: "🟢", iconSize: [24, 24] }),
+      }).addTo(mapa);
+      elPontoEmbarque.innerHTML = `Embarque: <b>marcado</b> (toque no mapa pra ajustar)`;
+      elBtnConfirmarEmbarque.disabled = false;
+      abrirPopupEndereco(marcadorEmbarque, label);
+    }
+
+    function definirDesembarque(lat, lng, label) {
+      desembarque = { lat, lng };
+      if (marcadorDesembarque) mapa.removeLayer(marcadorDesembarque);
+      marcadorDesembarque = L.marker([lat, lng], {
+        icon: L.divIcon({ className: "", html: "🟡", iconSize: [24, 24] }),
+      }).addTo(mapa);
+      elPontoDesembarque.innerHTML = `Desembarque: <b>marcado</b> (toque no mapa pra ajustar)`;
+      elBtnConfirmarDesembarque.disabled = false;
+      abrirPopupEndereco(marcadorDesembarque, label);
+    }
+
+    // Busca de endereço (alternativa a tocar no mapa). "perto" é o ponto da
+    // viagem (partida pro embarque, chegada pro desembarque), usado no
+    // servidor só pra descobrir o estado certo via reverse geocode. O bairro
+    // não entra na busca (testado: piora o resultado) -- só vira texto de
+    // referência, preenchido automaticamente quando a pessoa escolhe um
+    // resultado.
+    async function buscarEndereco({ rua, numero, cidade, perto }) {
+      const resp = await fetch("/api/geocode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rua, numero, cidade, perto }),
+      });
+      const dados = await resp.json();
+      if (!resp.ok) throw new Error(dados.error || `Erro ${resp.status}`);
+      return dados.resultados;
+    }
+
+    function configurarBuscaEndereco({ sufixo, perto, definirPonto, zoom }) {
+      const elRua = document.getElementById(`input-rua-${sufixo}`);
+      const elNumero = document.getElementById(`input-numero-${sufixo}`);
+      const elBairro = document.getElementById(`input-bairro-${sufixo}`);
+      const elCidade = document.getElementById(`input-cidade-${sufixo}`);
+      const elRef = document.getElementById(`input-ref-${sufixo}`);
+      const elBotao = document.getElementById(`btn-buscar-${sufixo}`);
+      const elResultados = document.getElementById(`resultados-${sufixo}`);
+
+      elBotao.addEventListener("click", async () => {
+        const rua = elRua.value.trim();
+        const numero = elNumero.value.trim();
+        const bairro = elBairro.value.trim();
+        const cidade = elCidade.value.trim();
+        if (!rua || !cidade) {
+          elResultados.textContent = "Preencha pelo menos a rua e a cidade.";
+          return;
+        }
+        if (!perto()) {
+          elResultados.textContent = "Ainda carregando a viagem, tenta de novo em instantes.";
+          return;
+        }
+
+        elBotao.disabled = true;
+        elResultados.textContent = "Buscando...";
+        try {
+          const resultados = await buscarEndereco({ rua, numero, cidade, perto: perto() });
+          elResultados.innerHTML = "";
+          if (!resultados.length) {
+            elResultados.textContent = "Nenhum resultado. Confira o endereço ou marque no mapa.";
+            return;
+          }
+          resultados.forEach((r) => {
+            // Separa "Rua X 123" (destaque) de ", Cidade, MG, Brazil" (menor).
+            const virgula = r.label.indexOf(",");
+            const rua = virgula === -1 ? r.label : r.label.slice(0, virgula);
+            const local = virgula === -1 ? "" : r.label.slice(virgula + 1).trim();
+
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "resultado-endereco";
+            btn.innerHTML = `
+              <span class="resultado-texto">
+                <span class="resultado-rua">${rua}</span>
+                ${local ? `<span class="resultado-local">${local}</span>` : ""}
+              </span>
+              <span class="resultado-seta">›</span>
+            `;
+            btn.addEventListener("click", () => {
+              elResultados.innerHTML = `<div class="ponto">✓ Selecionado: <b>${r.label}</b></div>`;
+              if (bairro && !elRef.value.trim()) elRef.value = bairro;
+              // Só cria o pino/popup depois que o mapa terminar de aparecer
+              // (invalidateSize), senão o popup sai com a posição bugada.
+              mostrarMapa(() => {
+                mapa.setView([r.lat, r.lng], zoom);
+                definirPonto(r.lat, r.lng, r.label);
+              });
+            });
+            elResultados.appendChild(btn);
+          });
+        } catch (e) {
+          elResultados.textContent = "Erro: " + e.message;
+        } finally {
+          elBotao.disabled = false;
+        }
+      });
+    }
+
+    configurarBuscaEndereco({
+      sufixo: "embarque",
+      perto: () => partidaCoords,
+      definirPonto: definirEmbarque,
+      zoom: 17,
+    });
+    configurarBuscaEndereco({
+      sufixo: "desembarque",
+      perto: () => chegadaCoords,
+      definirPonto: definirDesembarque,
+      zoom: 17,
+    });
+
+    // O mapa fica escondido por padrão (o endereço digitado é a forma
+    // principal) -- só aparece se a pessoa tocar em "Prefiro marcar no mapa".
+    let mapaAberto = false;
+
+    // "aoTerminar" só roda depois do invalidateSize -- importante pra quem
+    // for abrir um popup logo em seguida (popup calculado com o mapa ainda
+    // escondido/com tamanho errado sai com a posição toda bugada).
+    function mostrarMapa(aoTerminar) {
+      mapaAberto = true;
+      elMapaSecao.style.display = "block";
+      setTimeout(() => {
+        mapa.invalidateSize();
+        if (aoTerminar) aoTerminar();
+      }, 50);
+    }
+    function esconderMapa() {
+      mapaAberto = false;
+      elMapaSecao.style.display = "none";
+    }
+    function alternarMapa() {
+      if (mapaAberto) esconderMapa();
+      else mostrarMapa();
+    }
+    elBtnAlternarMapaEmbarque.addEventListener("click", alternarMapa);
+    elBtnAlternarMapaDesembarque.addEventListener("click", alternarMapa);
+
+    function irParaPasso(novoPasso) {
+      passo = novoPasso;
+      elPainelEmbarque.style.display = novoPasso === "embarque" ? "flex" : "none";
+      elPainelDesembarque.style.display = novoPasso === "desembarque" ? "flex" : "none";
+      elForm.style.display = novoPasso === "dados" ? "flex" : "none";
+      esconderMapa(); // cada etapa começa com o mapa minimizado
+
+      elBtnLocalizacao.style.display = novoPasso === "embarque" ? "block" : "none";
+      elPontoEmbarque.style.display = novoPasso === "embarque" ? "block" : "none";
+      elPontoDesembarque.style.display = novoPasso === "desembarque" ? "block" : "none";
+
+      if (novoPasso === "embarque") {
+        elInstrucao.className = "embarque";
+        elInstrucao.textContent = "Etapa 1 de 3 — Embarque";
+        if (partidaCoords) mapa.setView([partidaCoords.lat, partidaCoords.lng], 13);
+      } else if (novoPasso === "desembarque") {
+        elInstrucao.className = "desembarque";
+        elInstrucao.textContent = "Etapa 2 de 3 — Desembarque";
+        if (chegadaCoords) mapa.setView([chegadaCoords.lat, chegadaCoords.lng], 13);
+      } else {
+        elInstrucao.className = "dados";
+        elInstrucao.textContent = "Etapa 3 de 3 — Seus dados";
+      }
+    }
+
+    mapa.on("click", (ev) => {
+      const { lat, lng } = ev.latlng;
+      if (passo === "embarque") definirEmbarque(lat, lng);
+      else if (passo === "desembarque") definirDesembarque(lat, lng);
+    });
+
+    elBtnLocalizacao.addEventListener("click", () => {
+      if (!navigator.geolocation) {
+        elMsg.className = "erro";
+        elMsg.textContent = "Seu navegador não suporta localização automática. Marque o ponto no mapa.";
+        return;
+      }
+      elBtnLocalizacao.disabled = true;
+      elBtnLocalizacao.textContent = "Obtendo localização...";
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          definirEmbarque(pos.coords.latitude, pos.coords.longitude);
+          mapa.setView([pos.coords.latitude, pos.coords.longitude], 16);
+          elBtnLocalizacao.disabled = false;
+          elBtnLocalizacao.textContent = "📍 Usar minha localização atual";
+        },
+        (err) => {
+          elMsg.className = "erro";
+          elMsg.textContent =
+            "Não consegui pegar sua localização (" + err.message + "). " +
+            "Isso só funciona em conexão segura (https) ou localhost — marque o ponto no mapa manualmente.";
+          elBtnLocalizacao.disabled = false;
+          elBtnLocalizacao.textContent = "📍 Usar minha localização atual";
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    });
+
+    elBtnConfirmarEmbarque.addEventListener("click", () => irParaPasso("desembarque"));
+    elBtnVoltarEmbarque.addEventListener("click", () => irParaPasso("embarque"));
+    elBtnConfirmarDesembarque.addEventListener("click", () => irParaPasso("dados"));
+    elBtnVoltarDesembarque.addEventListener("click", () => irParaPasso("desembarque"));
+
+    elForm.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      if (!embarque || !desembarque) return;
+
+      elBtnEnviar.disabled = true;
+      elMsg.className = "";
+      elMsg.textContent = "Enviando...";
+
+      const corpo = {
+        nome: document.getElementById("input-nome").value.trim(),
+        embarque: { ...embarque, ref: document.getElementById("input-ref-embarque").value.trim() },
+        desembarque: { ...desembarque, ref: document.getElementById("input-ref-desembarque").value.trim() },
+      };
+
+      try {
+        const resp = await fetch(`/api/viagens/${encodeURIComponent(viagemId)}/solicitar`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(corpo),
+        });
+        const dados = await resp.json();
+        if (!resp.ok) throw new Error(dados.error || `Erro ${resp.status}`);
+
+        elMsg.className = "sucesso";
+        elMsg.textContent = "Pedido enviado! Aguarde o motorista aprovar.";
+        elForm.style.display = "none";
+        elInstrucao.style.display = "none";
+      } catch (e) {
+        elMsg.className = "erro";
+        elMsg.textContent = "Erro: " + e.message;
+        elBtnEnviar.disabled = false;
+      }
+    });
+
+    async function iniciar() {
+      if (!viagemId) return;
+      try {
+        const resp = await fetch(`/api/viagens/${encodeURIComponent(viagemId)}/info`);
+        const info = await resp.json();
+        if (!resp.ok) throw new Error(info.error || `Erro ${resp.status}`);
+
+        if (info.status !== "aberta") {
+          erroFatal("Essa viagem não está mais aceitando pedidos.");
+          return;
+        }
+
+        partidaCoords = info.partida;
+        chegadaCoords = info.chegada;
+        irParaPasso("embarque");
+      } catch (e) {
+        erroFatal("Erro ao carregar a viagem: " + e.message);
+      }
+    }
+
+    iniciar();
+  </script>
+</body>
+</html>

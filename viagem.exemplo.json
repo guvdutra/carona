@@ -1,0 +1,16 @@
+{
+  "partida":  { "nome": "Minha casa", "lat": -21.23994001130684, "lng": -44.992850452991114 },
+  "chegada":  { "nome": "Meu destino final", "lat": -20.95038601499997, "lng": -44.92043078034034 },
+  "caroneiros": [
+    {
+      "nome": "João",
+      "embarque":    { "lat": -21.2390, "lng": -44.9930, "ref": "em frente à padaria" },
+      "desembarque": { "lat": -20.9500, "lng": -44.9150, "ref": "praça da matriz" }
+    },
+    {
+      "nome": "Maria",
+      "embarque":    { "lat": -21.1000, "lng": -44.9600, "ref": "posto na rodovia" },
+      "desembarque": { "lat": -20.9420, "lng": -44.9230 }
+    }
+  ]
+}
